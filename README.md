@@ -129,4 +129,3 @@ Google-News feeds (about the last two days):
 ## License
 
 AGPL-3.0-only, see [LICENSE](LICENSE).
-# sitemaps

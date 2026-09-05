@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "verified": "2026-09-04",
+  "user_agent": "somes/2026.1.0",
+  "providers": [
+    {
+      "id": "derstandard",
+      "name": "derStandard.at",
+      "origin": "https://www.derstandard.at",
+      "article_markers": [
+        "/story/",
+        "/jetzt/livebericht/"
+      ],
+      "notes": "robots.txt blocks GPTBot, ClaudeBot, CCBot, Google-Extended, PerplexityBot.",
+      "sitemaps": [
+        {
+          "kind": "archive",
+          "url": "https://www.derstandard.at/sitemaps/sitemap.xml",
+          "granularity": "month",
+          "coverage": "1997-01 until now",
+          "notes": "353 monthly children sitemap-YYYY-MM.xml, 4000-6000 urls each, ~1.6M urls total."
+        },
+        {
+          "kind": "news",
+          "url": "https://www.derstandard.at/sitemaps/news.xml",
+          "notes": "google news feed, roughly the last 2 days."
+        }
+      ]
+    },
+    {
+      "id": "profil",
+      "name": "profil",
+      "origin": "https://www.profil.at",
+      "article_markers": [
+        "regex:[-/][0-9]{4,}$"
+      ],
+      "notes": "URL format changed: pre-2015 ends with -ID, current ends with /ID.",
+      "sitemaps": [
+        {
+          "kind": "archive",
+          "url": "https://www.profil.at/sitemaps_article.xml",
+          "granularity": "week",
+          "coverage": "2014-11-24 until now",
+          "notes": "614 weekly children sitemaps_article_YYYY-MM-DD.xml, ~45 urls each. Older files return 200 with no url entries."
+        },
+        {
+          "kind": "news",
+          "url": "https://www.profil.at/sitemaps_google_news.xml",
+          "notes": "google news feed, roughly the last 2 days."
+        }
+      ]
+    },
+    {
+      "id": "kurier",
+      "name": "Kurier",
+      "origin": "https://kurier.at",
+      "article_markers": [
+        "regex:/[0-9][0-9.]{2,}$"
+      ],
+      "notes": "Entry lastmod values are modification dates, not publication dates. Pre-2015 ids are dotted: /2.530.752.",
+      "sitemaps": [
+        {
+          "kind": "archive",
+          "url": "https://kurier.at/sitemaps_article.xml",
+          "granularity": "week",
+          "coverage": "2007-10-29 until now",
+          "notes": "968 weekly children sitemaps_article_YYYY-MM-DD.xml, ~880 urls each. Older files return 200 with no url entries."
+        },
+        {
+          "kind": "news",
+          "url": "https://kurier.at/sitemaps_google_news.xml",
+          "notes": "google news feed, roughly the last 2 days."
+        },
+        {
+          "kind": "recipe",
+          "url": "https://kurier.at/sitemaps_recipe.xml"
+        },
+        {
+          "kind": "restaurant",
+          "url": "https://kurier.at/sitemaps_restaurant.xml"
+        }
+      ]
+    },
+    {
+      "id": "diepresse",
+      "name": "Die Presse",
+      "origin": "https://www.diepresse.com",
+      "article_markers": [
+        "regex:/[0-9]{5,}/"
+      ],
+      "notes": "presse.orf.at does not resolve. robots.txt blocks common AI crawlers.",
+      "sitemaps": [
+        {
+          "kind": "archive",
+          "url": "https://www.diepresse.com/sitemap",
+          "granularity": "month",
+          "coverage": "2007-02 until now",
+          "notes": "235 monthly children at /sitemap/YYYY/MM without .xml suffix, 4000-12000 urls each."
+        },
+        {
+          "kind": "news",
+          "url": "https://www.diepresse.com/news-sitemap",
+          "notes": "google news feed, roughly the last 2 days."
+        },
+        {
+          "kind": "author",
+          "url": "https://www.diepresse.com/author-sitemap",
+          "notes": "author index pages, not articles."
+        }
+      ]
+    },
+    {
+      "id": "oe24",
+      "name": "oe24.at",
+      "origin": "https://www.oe24.at",
+      "article_markers": [
+        "/a/"
+      ],
+      "notes": "news, video and the current month file are unreliable, the current month file can be 404 or time out.",
+      "sitemaps": [
+        {
+          "kind": "archive",
+          "url": "https://www.oe24.at/sitemap-article.xml",
+          "granularity": "month",
+          "coverage": "2007-01 until now",
+          "notes": "237 monthly children sitemap-article-YYYY-MM.xml, 2600-4700 urls each."
+        },
+        {
+          "kind": "news",
+          "url": "https://www.oe24.at/sitemap-news.xml",
+          "notes": "flaky, frequently times out."
+        },
+        {
+          "kind": "video",
+          "url": "https://www.oe24.at/sitemap-video.xml",
+          "notes": "flaky, frequently times out."
+        },
+        {
+          "kind": "channel",
+          "url": "https://www.oe24.at/sitemapchannel.xml",
+          "notes": "channel and video pages, not articles."
+        }
+      ]
+    },
+    {
+      "id": "salzburger-nachrichten",
+      "name": "Salzburger Nachrichten",
+      "origin": "https://www.sn.at",
+      "article_markers": [
+        "-art-"
+      ],
+      "notes": "index.sitemap.xml lists only the two news feeds, the archive is nested one level deeper.",
+      "sitemaps": [
+        {
+          "kind": "archive",
+          "url": "https://www.sn.at/portal-artikel.sitemap.xml",
+          "granularity": "month",
+          "coverage": "2002-03 until now",
+          "notes": "550 monthly chunk files article-YYYY_MM-N.sitemap.xml, ~1300 urls each. portal-artikel.sitemap.xml is itself a sitemap index."
+        },
+        {
+          "kind": "news",
+          "url": "https://www.sn.at/news-artikel.sitemap.xml",
+          "notes": "google news feed, roughly the last 2 days."
+        },
+        {
+          "kind": "ticker",
+          "url": "https://www.sn.at/news-ticker.sitemap.xml"
+        },
+        {
+          "kind": "liveticker",
+          "url": "https://www.sn.at/portal-liveticker.sitemap.xml"
+        },
+        {
+          "kind": "traueranzeigen",
+          "url": "https://www.sn.at/portal-traueranzeigen.sitemap.xml"
+        },
+        {
+          "kind": "fotoblogs",
+          "url": "https://www.sn.at/portal-fotoblogs.sitemap.xml"
+        }
+      ]
+    },
+    {
+      "id": "heute",
+      "name": "Heute",
+      "origin": "https://www.heute.at",
+      "article_markers": [
+        "/s/"
+      ],
+      "notes": "robots.txt blocks AI crawlers. No google news sitemap, /sitemap.xml is 404.",
+      "sitemaps": [
+        {
+          "kind": "archive",
+          "url": "https://www.heute.at/storage/sitemaps/sitemap.xml",
+          "coverage": "about 2003 until now",
+          "notes": "16 flat shards sitemap_0.xml until sitemap_15.xml, 50000 urls each, 766566 unique urls. Shard index lastmod values are stale but shard content is current. Shards carry no date in the filename, so date filters use the entry lastmod."
+        }
+      ]
+    }
+  ]
+}
