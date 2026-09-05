@@ -114,7 +114,7 @@
       "name": "oe24.at",
       "origin": "https://www.oe24.at",
       "article_markers": [
-        "/a/"
+        "a/"
       ],
       "notes": "news, video and the current month file are unreliable, the current month file can be 404 or time out.",
       "sitemaps": [
@@ -139,45 +139,6 @@
           "kind": "channel",
           "url": "https://www.oe24.at/sitemapchannel.xml",
           "notes": "channel and video pages, not articles."
-        }
-      ]
-    },
-    {
-      "id": "salzburger-nachrichten",
-      "name": "Salzburger Nachrichten",
-      "origin": "https://www.sn.at",
-      "article_markers": [
-        "-art-"
-      ],
-      "notes": "index.sitemap.xml lists only the two news feeds, the archive is nested one level deeper.",
-      "sitemaps": [
-        {
-          "kind": "archive",
-          "url": "https://www.sn.at/portal-artikel.sitemap.xml",
-          "granularity": "month",
-          "coverage": "2002-03 until now",
-          "notes": "550 monthly chunk files article-YYYY_MM-N.sitemap.xml, ~1300 urls each. portal-artikel.sitemap.xml is itself a sitemap index."
-        },
-        {
-          "kind": "news",
-          "url": "https://www.sn.at/news-artikel.sitemap.xml",
-          "notes": "google news feed, roughly the last 2 days."
-        },
-        {
-          "kind": "ticker",
-          "url": "https://www.sn.at/news-ticker.sitemap.xml"
-        },
-        {
-          "kind": "liveticker",
-          "url": "https://www.sn.at/portal-liveticker.sitemap.xml"
-        },
-        {
-          "kind": "traueranzeigen",
-          "url": "https://www.sn.at/portal-traueranzeigen.sitemap.xml"
-        },
-        {
-          "kind": "fotoblogs",
-          "url": "https://www.sn.at/portal-fotoblogs.sitemap.xml"
         }
       ]
     },

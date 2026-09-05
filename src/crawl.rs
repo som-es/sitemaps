@@ -1,15 +1,16 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Duration;
 
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 use futures::future::join_all;
 use regex::Regex;
 
 use crate::config::{url_date, Config, Provider, KIND_ARCHIVE, KIND_NEWS};
 use crate::error::Error;
 use crate::parse::{self, SitemapBody, SitemapEntry};
+use crate::{Granularity, UrlOrSitemap};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DateRange {
     pub start: Option<NaiveDate>,
     pub end: Option<NaiveDate>,
@@ -210,7 +211,10 @@ impl Crawl {
     }
 
     pub fn urls(&self) -> Vec<&str> {
-        self.entries.iter().map(|entry| entry.loc.as_str()).collect()
+        self.entries
+            .iter()
+            .map(|entry| entry.loc.as_str())
+            .collect()
     }
 
     pub fn into_entries(self) -> Vec<SitemapEntry> {
@@ -305,10 +309,7 @@ impl Crawler {
     }
 
     pub async fn entries(&self, provider_id: &str) -> Result<Vec<SitemapEntry>, Error> {
-        Ok(self
-            .crawl(&Query::new(provider_id))
-            .await?
-            .into_entries())
+        Ok(self.crawl(&Query::new(provider_id)).await?.into_entries())
     }
 
     pub async fn crawl(&self, query: &Query) -> Result<Crawl, Error> {
@@ -317,15 +318,15 @@ impl Crawler {
             .provider(&query.provider)
             .ok_or_else(|| Error::UnknownProvider(query.provider.clone()))?;
 
-        let mut queue: VecDeque<(String, usize)> = provider
+        let mut queue: VecDeque<(UrlOrSitemap, usize)> = provider
             .sitemaps(query.kind.as_deref())
             .into_iter()
             .cloned()
-            .map(|sitemap| (sitemap.url, 0))
+            .map(|sitemap| (UrlOrSitemap::Sitemap(sitemap), 0))
             .collect();
         let mut seen_files: HashSet<String> = queue
             .iter()
-            .map(|(url, _)| url.clone())
+            .map(|(sitemap, _)| sitemap.url().to_string())
             .collect::<HashSet<String>>();
         let mut found: Vec<SitemapEntry> = Vec::new();
         let mut unique: HashSet<String> = HashSet::new();
@@ -333,15 +334,15 @@ impl Crawler {
 
         while !queue.is_empty() {
             let size = self.concurrency.min(queue.len());
-            let batch: Vec<(String, usize)> = queue.drain(..size).collect();
-            let bodies = join_all(batch.iter().map(|(url, _)| self.fetch(url))).await;
+            let batch: Vec<(UrlOrSitemap, usize)> = queue.drain(..size).collect();
+            let bodies = join_all(batch.iter().map(|(url, _)| self.fetch(url.url()))).await;
 
             for ((url, depth), body) in batch.iter().zip(bodies) {
                 let body = match body {
                     Ok(body) => body,
                     Err(error) => {
                         report.files_failed += 1;
-                        report.errors.push(format!("{url}: {error}"));
+                        report.errors.push(format!("{}: {error}", url.url()));
                         continue;
                     }
                 };
@@ -350,20 +351,35 @@ impl Crawler {
                 match body {
                     SitemapBody::Index(entries) => {
                         for entry in entries {
+                            let range = match &url {
+                                UrlOrSitemap::Sitemap(sitemap) => match sitemap.granularity {
+                                    Granularity::Month | Granularity::Week => {
+                                        query.range.clone().map(|mut range| {
+                                            range.start = range
+                                                .start
+                                                .map(|start| start.with_day(1).unwrap_or(start));
+                                            range
+                                        })
+                                    }
+                                    _ => query.range,
+                                },
+                                _ => query.range,
+                            };
+
                             if *depth >= self.max_depth
-                                || !keep(url_date(&entry.loc), None, query.range.as_ref())
+                                || !keep(url_date(&entry.loc), None, range.as_ref())
                             {
                                 continue;
                             }
                             if seen_files.insert(entry.loc.clone()) {
-                                queue.push_back((entry.loc, depth + 1));
+                                queue.push_back((UrlOrSitemap::Url(entry.loc), depth + 1));
                             }
                         }
                     }
                     SitemapBody::Urls(entries) => {
-                        let file_date = url_date(url);
+                        let file_date = url_date(url.url());
                         for entry in entries {
-                            if !keep(file_date, entry.date(), query.range.as_ref())
+                            if !keep(entry.date(), file_date, query.range.as_ref())
                                 || !self.matchers.is_article(provider, &entry.loc)
                             {
                                 continue;
@@ -546,7 +562,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn august_2026_urls_from_three_sites() {
         for id in ["derstandard", "kurier", "heute"] {
             let crawler = Crawler::builtin().unwrap();
@@ -555,5 +570,24 @@ mod tests {
             assert!(!crawl.is_empty(), "{id} yielded nothing");
             assert!(crawl.urls().iter().all(|url| crawler.is_article(id, url)));
         }
+    }
+
+    #[tokio::test]
+    async fn test_all_providers_span_over_months() -> Result<(), Error> {
+        let config = Config::builtin();
+        let crawler = Crawler::new(config.clone())?;
+        for provider in config.provider_ids() {
+            let start = NaiveDate::from_ymd_opt(2025, 7, 29).unwrap();
+            let end = NaiveDate::from_ymd_opt(2025, 8, 1).unwrap();
+            let query = Query::new(provider).kind("archive").between(start, end);
+            let crawl = crawler.crawl(&query).await?;
+            let mut entries = crawl.entries().iter().collect::<Vec<_>>();
+            entries.sort_by(|a, b| a.lastmod.cmp(&b.lastmod));
+            let date = entries.first().as_ref().unwrap().date().unwrap();
+            assert_eq!(date, start);
+            let date = entries.last().as_ref().unwrap().date().unwrap();
+            assert_eq!(date, end);
+        }
+        Ok(())
     }
 }
