@@ -156,7 +156,30 @@ impl Matcher {
 
 #[derive(Debug, Clone, Default)]
 pub struct Matchers {
-    by_provider: HashMap<String, Vec<Matcher>>,
+    by_provider: HashMap<String, Vec<(bool, Matcher)>>,
+}
+
+fn compile_markers(patterns: &[String]) -> Vec<(bool, Matcher)> {
+    patterns
+        .iter()
+        .map(|pattern| {
+            let negate = pattern.starts_with('!');
+            (negate, Matcher::compile(pattern.trim_start_matches('!')))
+        })
+        .collect()
+}
+
+fn matches_article(markers: &[(bool, Matcher)], url: &str) -> bool {
+    let allowed = markers.iter().filter(|(negate, _)| !negate).count();
+    if allowed == 0 {
+        return true;
+    }
+    !markers
+        .iter()
+        .any(|(negate, matcher)| *negate && matcher.is_match(url))
+        && markers
+            .iter()
+            .any(|(negate, matcher)| !negate && matcher.is_match(url))
 }
 
 impl Matchers {
@@ -168,11 +191,7 @@ impl Matchers {
                 .map(|provider| {
                     (
                         provider.id.to_lowercase(),
-                        provider
-                            .article_markers
-                            .iter()
-                            .map(|pattern| Matcher::compile(pattern))
-                            .collect(),
+                        compile_markers(&provider.article_markers),
                     )
                 })
                 .collect(),
@@ -181,12 +200,8 @@ impl Matchers {
 
     pub fn is_article(&self, provider: &Provider, url: &str) -> bool {
         match self.by_provider.get(&provider.id.to_lowercase()) {
-            None => provider
-                .article_markers
-                .iter()
-                .any(|pattern| Matcher::compile(pattern).is_match(url)),
-            Some(markers) if markers.is_empty() => true,
-            Some(markers) => markers.iter().any(|matcher| matcher.is_match(url)),
+            Some(markers) => matches_article(markers, url),
+            None => matches_article(&compile_markers(&provider.article_markers), url),
         }
     }
 }
@@ -576,18 +591,151 @@ mod tests {
     async fn test_all_providers_span_over_months() -> Result<(), Error> {
         let config = Config::builtin();
         let crawler = Crawler::new(config.clone())?;
-        for provider in config.provider_ids() {
+        for provider in config.active_provider_ids() {
             let start = NaiveDate::from_ymd_opt(2025, 7, 29).unwrap();
             let end = NaiveDate::from_ymd_opt(2025, 8, 1).unwrap();
             let query = Query::new(provider).kind("archive").between(start, end);
             let crawl = crawler.crawl(&query).await?;
+            assert!(
+                !crawl.is_empty(),
+                "{provider} yielded nothing between {start} and {end}: {:?}",
+                crawl.report.errors
+            );
             let mut entries = crawl.entries().iter().collect::<Vec<_>>();
-            entries.sort_by(|a, b| a.lastmod.cmp(&b.lastmod));
-            let date = entries.first().as_ref().unwrap().date().unwrap();
-            assert_eq!(date, start);
-            let date = entries.last().as_ref().unwrap().date().unwrap();
-            assert_eq!(date, end);
+            entries.sort_by(|a, b| a.date().cmp(&b.date()));
+            let first = entries.first().unwrap().date().unwrap();
+            assert_eq!(first, start, "{provider} starts at {first}");
+            let last = entries.last().unwrap().date().unwrap();
+            assert_eq!(last, end, "{provider} ends at {last}");
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn every_active_provider_yields_news_articles_in_a_window() -> Result<(), Error> {
+        let config = Config::builtin();
+        let crawler = Crawler::new(config.clone())?;
+        let start = NaiveDate::from_ymd_opt(2026, 8, 3).unwrap();
+        let end = NaiveDate::from_ymd_opt(2026, 8, 9).unwrap();
+
+        for provider in config.active_provider_ids() {
+            let query = Query::new(provider).kind(KIND_ARCHIVE).between(start, end);
+            let crawl = crawler.crawl(&query).await?;
+            let errors = &crawl.report.errors;
+            assert!(
+                !crawl.is_empty(),
+                "{provider} yielded no article urls between {start} and {end}, {errors:?}",
+            );
+            assert!(
+                crawl.report.files_failed <= 1,
+                "{provider} failed {} sitemap files: {errors:?}",
+                crawl.report.files_failed
+            );
+
+            let origin = config.provider(provider).unwrap().origin.clone();
+            let mut seen = HashSet::new();
+            for entry in crawl.entries() {
+                assert!(
+                    crawler.is_article(provider, &entry.loc),
+                    "{provider} yielded a url that is not an article: {}",
+                    entry.loc
+                );
+                assert!(
+                    entry.loc.starts_with(origin.as_str())
+                        || entry
+                            .loc
+                            .starts_with(&origin.replace("https://", "https://www.")),
+                    "{provider} yielded a url outside {}: {}",
+                    origin,
+                    entry.loc
+                );
+                assert!(
+                    seen.insert(entry.loc.clone()),
+                    "{provider} yielded {} twice",
+                    entry.loc
+                );
+                if let Some(date) = entry.date() {
+                    assert!(
+                        date >= start && date <= end,
+                        "{provider} yielded {} dated {date}, outside {start}..{end}",
+                        entry.loc
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn news_feeds_only_list_recent_articles() -> Result<(), Error> {
+        let config = Config::builtin();
+        let crawler = Crawler::new(config.clone())?;
+        let today = chrono::Utc::now().date_naive();
+        let mut checked = 0;
+
+        for provider in config.provider_ids() {
+            let provider = config.provider(provider).unwrap();
+            if provider.sitemaps(Some(KIND_NEWS)).is_empty() {
+                continue;
+            }
+            checked += 1;
+            let crawl = crawler
+                .crawl(&Query::new(provider.id.as_str()).kind(KIND_NEWS))
+                .await?;
+            assert!(
+                !crawl.is_empty(),
+                "{} news feed yielded nothing: {:?}",
+                provider.id,
+                crawl.report.errors
+            );
+            let mut recent = 0usize;
+            let mut oldest = 0i64;
+            for entry in crawl.entries() {
+                assert!(
+                    crawler.is_article(&provider.id, &entry.loc),
+                    "{} news feed yielded a non article url: {}",
+                    provider.id,
+                    entry.loc
+                );
+                if let Some(date) = entry.date() {
+                    let age = today.signed_duration_since(date).num_days();
+                    oldest = oldest.max(age);
+                    if age <= 7 {
+                        recent += 1;
+                    }
+                }
+            }
+            assert!(
+                recent as f64 >= crawl.len() as f64 * 0.8,
+                "{} news feed lists only {recent} of {} articles that are not older than a week",
+                provider.id,
+                crawl.len()
+            );
+            assert!(
+                oldest <= 90,
+                "{} news feed lists an article that is {oldest} days old",
+                provider.id
+            );
+        }
+        assert!(checked >= 5, "expected at least five news feeds");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_provider_without_sources_yields_no_urls() -> Result<(), Error> {
+        let provider = Provider {
+            id: "without-sources".into(),
+            name: "Without".into(),
+            origin: "https://example.at".into(),
+            article_markers: vec!["/article/".into()],
+            sitemaps: vec![],
+            notes: None,
+        };
+        let crawler = Crawler::new(Config {
+            providers: vec![provider],
+            ..Config::default()
+        })?;
+        assert!(crawler.urls("without-sources").await?.is_empty());
         Ok(())
     }
 }

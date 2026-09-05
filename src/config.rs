@@ -61,6 +61,10 @@ pub struct Provider {
 }
 
 impl Provider {
+    pub fn has_sources(&self) -> bool {
+        self.sitemaps.iter().any(|sitemap| !sitemap.disabled)
+    }
+
     pub fn sitemaps(&self, kind: Option<&str>) -> Vec<&Sitemap> {
         self.sitemaps
             .iter()
@@ -128,6 +132,14 @@ impl Config {
     pub fn provider_ids(&self) -> Vec<&str> {
         self.providers
             .iter()
+            .map(|provider| provider.id.as_str())
+            .collect()
+    }
+
+    pub fn active_provider_ids(&self) -> Vec<&str> {
+        self.providers
+            .iter()
+            .filter(|provider| provider.has_sources())
             .map(|provider| provider.id.as_str())
             .collect()
     }
@@ -205,18 +217,83 @@ mod tests {
     #[test]
     fn builtin_config_is_valid() {
         let config = Config::builtin();
-        assert_eq!(config.providers.len(), 7);
+        assert_eq!(config.providers.len(), 6);
         for id in [
             "derstandard",
             "profil",
             "kurier",
             "diepresse",
             "oe24",
-            "salzburger-nachrichten",
             "heute",
         ] {
             assert!(config.provider(id).is_some(), "missing provider {id}");
         }
+        for removed in ["salzburger-nachrichten", "orf"] {
+            assert!(
+                config.provider(removed).is_none(),
+                "{removed} is not configured"
+            );
+        }
+    }
+
+    #[test]
+    fn every_provider_is_configured_for_news_articles() {
+        let config = Config::builtin();
+        let mut ids = config.provider_ids();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), config.providers.len(), "duplicate provider ids");
+
+        for provider in &config.providers {
+            assert!(!provider.id.is_empty(), "provider without id");
+            assert_eq!(
+                provider.id,
+                provider.id.to_lowercase(),
+                "provider id {} is not lowercase",
+                provider.id
+            );
+            assert!(
+                !provider.article_markers.is_empty(),
+                "provider {} has no article markers",
+                provider.id
+            );
+
+            for sitemap in &provider.sitemaps {
+                assert!(
+                    sitemap.url.starts_with("https://"),
+                    "{} {} is not https",
+                    provider.id,
+                    sitemap.url
+                );
+                assert!(
+                    sitemap.url.starts_with(provider.origin.as_str()),
+                    "{} {} does not belong to {}",
+                    provider.id,
+                    sitemap.url,
+                    provider.origin
+                );
+                assert_eq!(
+                    sitemap.kind,
+                    sitemap.kind.to_lowercase(),
+                    "{} has an uppercase kind {}",
+                    provider.id,
+                    sitemap.kind
+                );
+                if sitemap.is_kind(KIND_ARCHIVE) {
+                    assert!(
+                        sitemap.coverage.is_some(),
+                        "{} archive source has no coverage",
+                        provider.id
+                    );
+                }
+            }
+        }
+
+        assert_eq!(
+            config.active_provider_ids().len(),
+            config.providers.len(),
+            "every provider needs at least one sitemap source"
+        );
     }
 
     #[test]
@@ -230,7 +307,7 @@ mod tests {
     fn providers_can_be_added_and_removed() {
         let mut config = Config::builtin();
         assert!(config.remove_provider("heute"));
-        assert_eq!(config.providers.len(), 6);
+        assert_eq!(config.providers.len(), 5);
         assert!(config.provider("heute").is_none());
         config.add_provider(Provider {
             id: "heute".into(),
@@ -247,7 +324,7 @@ mod tests {
             }],
             notes: None,
         });
-        assert_eq!(config.providers.len(), 7);
+        assert_eq!(config.providers.len(), 6);
         assert!(config.provider("Heute").is_some());
     }
 
@@ -256,25 +333,129 @@ mod tests {
         let config = Config::builtin();
         let matchers = crate::Matchers::from_config(&config);
         let derstandard = config.provider("derstandard").unwrap();
+        let profil = config.provider("profil").unwrap();
+        let kurier = config.provider("kurier").unwrap();
+        let diepresse = config.provider("diepresse").unwrap();
+        let oe24 = config.provider("oe24").unwrap();
         let heute = config.provider("heute").unwrap();
-        assert!(matchers.is_article(derstandard, "https://www.derstandard.at/story/1/foo"));
-        assert!(matchers.is_article(
-            derstandard,
-            "https://www.derstandard.at/jetzt/livebericht/1/foo"
-        ));
-        assert!(!matchers.is_article(derstandard, "https://www.derstandard.at/themen/wien"));
-        assert!(matchers.is_article(heute, "https://www.heute.at/s/foo-120213897"));
-        assert!(!matchers.is_article(heute, "https://www.heute.at/wetter/d/wien/1"));
+
+        let articles = [
+            (
+                derstandard,
+                "https://www.derstandard.at/story/3000000338502/profil-taliban",
+            ),
+            (
+                derstandard,
+                "https://www.derstandard.at/jetzt/livebericht/3000000338356/selenskyj",
+            ),
+            (
+                profil,
+                "https://www.profil.at/home/sexueller-missbrauch-suendenregister-63157",
+            ),
+            (
+                profil,
+                "https://www.profil.at/oesterreich/nach-spesen-aufregung/403188508",
+            ),
+            (
+                kurier,
+                "https://kurier.at/chronik/wien/oevp-justizanstalt-josefstadt/403188541",
+            ),
+            (
+                kurier,
+                "https://kurier.at/sport/fussball/der-naechste-rekord/2.530.752",
+            ),
+            (
+                kurier,
+                "https://kurier.at/archiv/die-redaktion-im-burgenland/711.751",
+            ),
+            (
+                diepresse,
+                "https://www.diepresse.com/41232830/reisetrend-fallcation",
+            ),
+            (diepresse, "https://www.diepresse.com/311205/wien-energie"),
+            (
+                oe24,
+                "https://www.oe24.at/a/sanieren-und-entpolitisieren-900089886",
+            ),
+            (
+                heute,
+                "https://www.heute.at/s/wolf-laesst-in-zib2-aufhorchen-120213897",
+            ),
+        ];
+        for (provider, url) in articles {
+            assert!(
+                matchers.is_article(provider, url),
+                "{} does not accept the article url {url}",
+                provider.id
+            );
+        }
+
+        let pages = [
+            (derstandard, "https://www.derstandard.at/themen/wien"),
+            (profil, "https://www.profil.at/dasfruehstueck"),
+            (kurier, "https://kurier.at/themen/wien"),
+            (diepresse, "https://www.diepresse.com/autor/max-mustermann"),
+            (oe24, "https://www.oe24.at/video/grosz-schuetz"),
+            (heute, "https://www.heute.at/wetter/d/wien/1"),
+        ];
+        for (provider, url) in pages {
+            assert!(
+                !matchers.is_article(provider, url),
+                "{} accepts the non article url {url}",
+                provider.id
+            );
+        }
+    }
+
+    #[test]
+    fn negated_markers_keep_sections_out() {
+        let config = Config::builtin();
+        let matchers = crate::Matchers::from_config(&config);
+        let kurier = config.provider("kurier").unwrap();
+        for url in [
+            "https://kurier.at/podcasts/stadtlandmeer/podcast-thomas-brezina/403188001",
+            "https://kurier.at/video/aktuelle-videos/meloni-bricht-rekord/403188501",
+            "https://kurier.at/cm/ki-chatbot-onlineshop-umsatz-steigern/403187910",
+            "https://kurier.at/trend-hub/signal-opening-tickets-wien-o-club/403188163",
+        ] {
+            assert!(
+                !matchers.is_article(kurier, url),
+                "kurier accepts the non article url {url}"
+            );
+        }
+        assert!(matchers.is_article(kurier, "https://kurier.at/chronik/wien/a/403188541"));
+
+        let provider = Provider {
+            id: "without-markers".into(),
+            name: "Without".into(),
+            origin: "https://example.at".into(),
+            article_markers: vec![],
+            sitemaps: vec![],
+            notes: None,
+        };
+        let matchers = crate::Matchers::from_config(&Config {
+            providers: vec![provider.clone()],
+            ..Config::default()
+        });
+        assert!(matchers.is_article(&provider, "https://example.at/anything"));
     }
 
     #[test]
     fn sitemap_kinds_can_be_selected_and_sources_disabled() {
-        let config = Config::builtin();
+        let mut config = Config::builtin();
         let kurier = config.provider("kurier").unwrap();
-        assert_eq!(kurier.sitemaps(None).len(), 4);
+        assert_eq!(kurier.sitemaps(None).len(), 2);
+        assert_eq!(kurier.sitemaps(Some(KIND_ARCHIVE)).len(), 1);
         assert_eq!(kurier.sitemaps(Some(KIND_NEWS)).len(), 1);
-        assert_eq!(kurier.sitemaps(Some("recipe")).len(), 1);
-        assert_eq!(kurier.sitemaps(Some("nothing")).len(), 0);
+        assert_eq!(kurier.sitemaps(Some("recipe")).len(), 0);
+
+        config.provider_mut("kurier").unwrap().sitemaps[0].disabled = true;
+        let kurier = config.provider("kurier").unwrap();
+        assert_eq!(kurier.sitemaps(None).len(), 1);
+        assert_eq!(kurier.sitemaps(Some(KIND_ARCHIVE)).len(), 0);
+        assert!(kurier.has_sources());
+        config.provider_mut("kurier").unwrap().sitemaps[1].disabled = true;
+        assert!(!config.provider("kurier").unwrap().has_sources());
     }
 
     #[test]

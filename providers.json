@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "verified": "2026-09-04",
+  "verified": "2026-09-05",
   "user_agent": "somes/2026.1.0",
   "providers": [
     {
@@ -23,7 +23,7 @@
         {
           "kind": "news",
           "url": "https://www.derstandard.at/sitemaps/news.xml",
-          "notes": "google news feed, roughly the last 2 days."
+          "notes": "google news feed, roughly the last 48 hours."
         }
       ]
     },
@@ -46,7 +46,7 @@
         {
           "kind": "news",
           "url": "https://www.profil.at/sitemaps_google_news.xml",
-          "notes": "google news feed, roughly the last 2 days."
+          "notes": "google news feed, roughly the last 48 hours."
         }
       ]
     },
@@ -55,9 +55,13 @@
       "name": "Kurier",
       "origin": "https://kurier.at",
       "article_markers": [
-        "regex:/[0-9][0-9.]{2,}$"
+        "regex:/[0-9][0-9.]{2,}$",
+        "!/podcasts/",
+        "!/video/",
+        "!/cm/",
+        "!/trend-hub/"
       ],
-      "notes": "Entry lastmod values are modification dates, not publication dates. Pre-2015 ids are dotted: /2.530.752.",
+      "notes": "Entry lastmod values are modification dates, not publication dates. Pre-2015 ids are dotted: /2.530.752. /podcasts, /video, /cm and /trend-hub are podcast episodes, clips and paid content, not news articles, so they are excluded. The google news feed also lists items that are weeks old.",
       "sitemaps": [
         {
           "kind": "archive",
@@ -69,15 +73,7 @@
         {
           "kind": "news",
           "url": "https://kurier.at/sitemaps_google_news.xml",
-          "notes": "google news feed, roughly the last 2 days."
-        },
-        {
-          "kind": "recipe",
-          "url": "https://kurier.at/sitemaps_recipe.xml"
-        },
-        {
-          "kind": "restaurant",
-          "url": "https://kurier.at/sitemaps_restaurant.xml"
+          "notes": "google news feed, roughly the last 48 hours."
         }
       ]
     },
@@ -100,12 +96,7 @@
         {
           "kind": "news",
           "url": "https://www.diepresse.com/news-sitemap",
-          "notes": "google news feed, roughly the last 2 days."
-        },
-        {
-          "kind": "author",
-          "url": "https://www.diepresse.com/author-sitemap",
-          "notes": "author index pages, not articles."
+          "notes": "google news feed, roughly the last 48 hours."
         }
       ]
     },
@@ -128,17 +119,7 @@
         {
           "kind": "news",
           "url": "https://www.oe24.at/sitemap-news.xml",
-          "notes": "flaky, frequently times out."
-        },
-        {
-          "kind": "video",
-          "url": "https://www.oe24.at/sitemap-video.xml",
-          "notes": "flaky, frequently times out."
-        },
-        {
-          "kind": "channel",
-          "url": "https://www.oe24.at/sitemapchannel.xml",
-          "notes": "channel and video pages, not articles."
+          "notes": "google news feed, roughly the last 48 hours."
         }
       ]
     },
