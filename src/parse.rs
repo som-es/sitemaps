@@ -2,15 +2,32 @@ use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use quick_xml::escape::unescape;
 use quick_xml::events::Event;
 use quick_xml::Reader;
+use std::hash::{Hash, Hasher};
 
 use crate::Error;
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialOrd, Ord)]
 pub struct SitemapEntry {
     pub loc: String,
     pub lastmod: Option<DateTime<Utc>>,
     pub published: Option<DateTime<Utc>>,
     pub title: Option<String>,
+}
+
+impl PartialEq for SitemapEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.loc == other.loc && self.lastmod == other.lastmod && self.published == other.published
+    }
+}
+
+impl Eq for SitemapEntry {}
+
+impl Hash for SitemapEntry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.loc.hash(state);
+        self.lastmod.hash(state);
+        self.published.hash(state);
+    }
 }
 
 impl SitemapEntry {

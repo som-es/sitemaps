@@ -1,11 +1,11 @@
 use chrono::NaiveDate;
-use sitemaps::{Crawler, Query};
+use sitemaps::{Crawler, Query, KIND_ARCHIVE, KIND_NEWS};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let query = Query::new("derstandard").kind("archive").between(
-        NaiveDate::from_ymd_opt(2025, 7, 10).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 8, 1).unwrap(),
+    let query = Query::new("derstandard").kind(KIND_ARCHIVE).between(
+        NaiveDate::from_ymd_opt(2026, 9, 4).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 9, 6).unwrap(),
     );
     let crawler = Crawler::builtin()?;
     let crawl = crawler.crawl(&query).await?;
@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     entries.sort_by(|a, b| a.lastmod.cmp(&b.lastmod));
 
     for url in crawl.entries() {
-        println!("{url:?}");
+        println!("{url:?} ");
     }
     eprintln!(
         "{} urls from {} sitemap files, {} failed, {} duplicates",
